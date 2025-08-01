@@ -36,6 +36,10 @@ print("Loaded GEMINI_API_KEY:", GEMINI_API_KEY[:4] + "..." + GEMINI_API_KEY[-4:]
 
 app = FastAPI()
 
+@app.get("/")
+def root():
+    return {"message": "Hello from Render"}
+
 # --- Initialize Services ---
 
 # Initialize Pinecone client instance
