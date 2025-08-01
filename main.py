@@ -34,7 +34,7 @@ print("Loaded PINECONE_API_KEY:", PINECONE_API_KEY[:4] + "..." + PINECONE_API_KE
 print("Loaded PINECONE_ENVIRONMENT:", PINECONE_ENVIRONMENT)
 print("Loaded GEMINI_API_KEY:", GEMINI_API_KEY[:4] + "..." + GEMINI_API_KEY[-4:])  # Print partial key for security
 
-app = FastAPI()
+app = FastAPI(root_path="/api/v1")
 
 # --- Initialize Services ---
 
