@@ -1,19 +1,20 @@
 import os
-from dotenv import load_dotenv
-load_dotenv()  # Load environment variables from .env file
-
+import io
+import json
 import requests
+import fitz  # PyMuPDF
+from docx import Document
+import email as email_parser
+from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict
 from pinecone import Pinecone, ServerlessSpec
-import google.generativeai as genai  # Gemini API
+import google.generativeai as genai
 from sentence_transformers import SentenceTransformer
-import fitz  # PyMuPDF
-from docx import Document  # DOCX parsing
-import email as email_parser
-import io
-import json
+
+# Load environment variables from .env file
+load_dotenv()
 
 # --- Environment Variables ---
 PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY")
@@ -30,11 +31,11 @@ if not PINECONE_ENVIRONMENT:
 if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY environment variable is not set")
 
-print("Loaded PINECONE_API_KEY:", PINECONE_API_KEY[:4] + "..." + PINECONE_API_KEY[-4:])  # Print partial key for security
-print("Loaded PINECONE_ENVIRONMENT:", PINECONE_ENVIRONMENT)
-print("Loaded GEMINI_API_KEY:", GEMINI_API_KEY[:4] + "..." + GEMINI_API_KEY[-4:])  # Print partial key for security
+print(f"Loaded PINECONE_API_KEY: {PINECONE_API_KEY[:4]}...{PINECONE_API_KEY[-4:]}")
+print(f"Loaded PINECONE_ENVIRONMENT: {PINECONE_ENVIRONMENT}")
+print(f"Loaded GEMINI_API_KEY: {GEMINI_API_KEY[:4]}...{GEMINI_API_KEY[-4:]}")
 
-app = FastAPI()
+app = FastAPI(root_path="/api/v1")
 
 @app.get("/")
 def root():
@@ -52,8 +53,8 @@ if PINECONE_INDEX_NAME not in pc.list_indexes().names():
         dimension=384,  # all-MiniLM-L6-v2 embedding dimension
         metric="cosine",
         spec=ServerlessSpec(
-            cloud="aws",       # <--- THIS MUST BE "aws"
-            region="us-east-1" # <--- THIS MUST BE "us-east-1"
+            cloud="aws",
+            region="us-east-1"
         )
     )
 
@@ -155,20 +156,19 @@ def get_llm_response(query: str, context: List[Dict]):
 
     try:
         response = gemini_model.generate_content(full_prompt)
-        # Handle different response formats
         if hasattr(response, 'text'):
             return response.text
-        elif hasattr(response, 'result'):
-            return response.result
         elif hasattr(response, 'candidates') and response.candidates:
             return response.candidates[0].content.parts[0].text
         else:
             return str(response)
     except Exception as e:
         print(f"Error calling LLM: {str(e)}")
-        print(f"Full response object: {str(response)}")
+        # Check for response object details if available
+        if 'response' in locals():
+            print(f"Full response object: {str(response)}")
         return f"An error occurred while processing the query: {str(e)}"
-    
+
 # --- API Endpoint ---
 @app.post("/hackrx/run")
 async def run_query_retrieval(
