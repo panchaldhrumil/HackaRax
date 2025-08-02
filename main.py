@@ -20,11 +20,13 @@ load_dotenv()
 PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY")
 PINECONE_ENVIRONMENT = os.environ.get("PINECONE_ENVIRONMENT")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-HF_API_TOKEN = os.environ.get("HF_API_TOKEN") # New Hugging Face Token
+HF_API_TOKEN = os.environ.get("HF_API_TOKEN") 
 
 PINECONE_INDEX_NAME = "insurance-policy-index"
 LLM_MODEL = "gemini-1.5-flash-latest"
-EMBEDDING_API_URL = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/msmarco-MiniLM-L-6-v3"
+
+# --- CORRECT HUGGING FACE API URL ---
+EMBEDDING_API_URL = "https://api-inference.huggingface.co/models/sentence-transformers/msmarco-MiniLM-L-6-v3"
 
 # Validate environment variables
 if not all([PINECONE_API_KEY, PINECONE_ENVIRONMENT, GEMINI_API_KEY, HF_API_TOKEN]):
@@ -120,7 +122,7 @@ async def run_query_retrieval(request: RunRequest, authorization: str = Header(.
         raise HTTPException(status_code=401, detail="Invalid or missing Authorization token.")
 
     try:
-        text_chunks = parse_document(request.documents)
+        text_chunks = parse_.document(request.documents)
         if not text_chunks:
             raise HTTPException(status_code=404, detail="Document content is empty or could not be parsed.")
         
@@ -134,7 +136,7 @@ async def run_query_retrieval(request: RunRequest, authorization: str = Header(.
             search_results = index.query(vector=query_embedding, top_k=5, namespace=request.documents, include_metadata=True)
             relevant_clauses = [match['metadata'] for match in search_results['matches']]
             llm_answer = get_llm_response(question, relevant_clauses)
-            answers.append(llm_answer) # Corrected line
+            answers.append(llm_answer)
         return {"answers": answers}
     except Exception as e:
         print(f"An error occurred during query processing: {e}")
