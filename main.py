@@ -35,8 +35,8 @@ print(f"Loaded PINECONE_API_KEY: {PINECONE_API_KEY[:4]}...{PINECONE_API_KEY[-4:]
 print(f"Loaded PINECONE_ENVIRONMENT: {PINECONE_ENVIRONMENT}")
 print(f"Loaded GEMINI_API_KEY: {GEMINI_API_KEY[:4]}...{GEMINI_API_KEY[-4:]}")
 
-# Initialize FastAPI app with the correct root path for deployment
-app = FastAPI(root_path="/api/v1")
+# Initialize FastAPI app WITHOUT the root_path
+app = FastAPI()
 
 # --- Initialize Services ---
 
