@@ -14,22 +14,6 @@ import google.generativeai as genai
 from sentence_transformers import SentenceTransformer
 
 # Load environment variables from .env file
-
-print("🟢 Starting app...")
-
-from fastapi import FastAPI, Header, HTTPException
-from pinecone import pinecone, ServerlessSpec
-
-print("🟢 Initializing Pinecone...")
-pinecone.init(PINECONE_API_KEY="your_pinecone_key", PINECONE_ENV="your_pinecone_environment")
-print("✅ Pinecone initialized")
-
-app = FastAPI()
-
-@app.get("/")
-def root():
-    return {"message": "App is running"}
-
 load_dotenv()
 
 # --- Environment Variables ---
@@ -51,8 +35,8 @@ print(f"Loaded PINECONE_API_KEY: {PINECONE_API_KEY[:4]}...{PINECONE_API_KEY[-4:]
 print(f"Loaded PINECONE_ENVIRONMENT: {PINECONE_ENVIRONMENT}")
 print(f"Loaded GEMINI_API_KEY: {GEMINI_API_KEY[:4]}...{GEMINI_API_KEY[-4:]}")
 
-
-
+# Initialize FastAPI app with the correct root path for deployment
+app = FastAPI(root_path="/api/v1")
 
 # --- Initialize Services ---
 
