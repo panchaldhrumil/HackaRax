@@ -11,7 +11,6 @@ from pydantic import BaseModel
 from typing import List, Dict
 from pinecone import Pinecone, ServerlessSpec
 import google.generativeai as genai
-import time
 
 # Load environment variables from .env file
 load_dotenv()
@@ -24,9 +23,8 @@ HF_API_TOKEN = os.environ.get("HF_API_TOKEN")
 
 PINECONE_INDEX_NAME = "insurance-policy-index"
 LLM_MODEL = "gemini-1.5-flash-latest"
-
-# --- CORRECT HUGGING FACE API URL ---
-EMBEDDING_API_URL = "https://api-inference.huggingface.co/models/sentence-transformers/msmarco-MiniLM-L-6-v3"
+# --- USING THE WORKING URL YOUR FRIEND PROVIDED ---
+EMBEDDING_API_URL = "https://api-inference.huggingface.co/models/BAAI/bge-small-en-v1.5"
 
 # Validate environment variables
 if not all([PINECONE_API_KEY, PINECONE_ENVIRONMENT, GEMINI_API_KEY, HF_API_TOKEN]):
@@ -40,6 +38,7 @@ app = FastAPI()
 # --- Initialize Services ---
 pc = Pinecone(api_key=PINECONE_API_KEY)
 if PINECONE_INDEX_NAME not in pc.list_indexes().names():
+    # Note: The new model has a dimension of 384, so no change is needed here.
     pc.create_index(name=PINECONE_INDEX_NAME, dimension=384, metric="cosine", spec=ServerlessSpec(cloud="aws", region="us-east-1"))
 
 index = pc.Index(PINECONE_INDEX_NAME)
@@ -55,9 +54,16 @@ class RunRequest(BaseModel):
 def get_embeddings_from_api(texts: List[str]) -> List[List[float]]:
     """Gets embeddings by calling the Hugging Face Inference API."""
     headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
-    response = requests.post(EMBEDDING_API_URL, headers=headers, json={"inputs": texts, "options": {"wait_for_model": True}})
+    
+    # This payload format is correct for sentence-embedding models.
+    payload = {"inputs": texts}
+    
+    response = requests.post(EMBEDDING_API_URL, headers=headers, json=payload)
+    
     if response.status_code != 200:
+        print(f"Error from Hugging Face API: {response.status_code} - {response.text}")
         raise Exception(f"Hugging Face API request failed with status {response.status_code}: {response.text}")
+        
     return response.json()
 
 def parse_document(file_url: str):
@@ -104,7 +110,6 @@ def get_llm_response(query: str, context: List[Dict]):
     )
     try:
         response = gemini_model.generate_content(full_prompt)
-        # Handle different response formats safely
         if hasattr(response, 'text'):
             return response.text
         elif hasattr(response, 'candidates') and response.candidates:
@@ -122,7 +127,7 @@ async def run_query_retrieval(request: RunRequest, authorization: str = Header(.
         raise HTTPException(status_code=401, detail="Invalid or missing Authorization token.")
 
     try:
-        text_chunks = parse_.document(request.documents)
+        text_chunks = parse_document(request.documents)
         if not text_chunks:
             raise HTTPException(status_code=404, detail="Document content is empty or could not be parsed.")
         
@@ -140,4 +145,4 @@ async def run_query_retrieval(request: RunRequest, authorization: str = Header(.
         return {"answers": answers}
     except Exception as e:
         print(f"An error occurred during query processing: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
