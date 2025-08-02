@@ -60,8 +60,20 @@ index = pc.Index(PINECONE_INDEX_NAME)
 genai.configure(api_key=GEMINI_API_KEY)
 gemini_model = genai.GenerativeModel(LLM_MODEL)
 
-# Initialize SentenceTransformer embedding model
-embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+# --- LAZY LOADING FOR EMBEDDING MODEL ---
+embedding_model = None
+
+def get_embedding_model():
+    """
+    Loads the SentenceTransformer model lazily.
+    The model is loaded only once and reused for subsequent calls.
+    """
+    global embedding_model
+    if embedding_model is None:
+        print("Loading embedding model...")
+        embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+        print("Embedding model loaded.")
+    return embedding_model
 
 # --- Data Models ---
 class RunRequest(BaseModel):
@@ -125,8 +137,11 @@ def embed_and_index_document(document_url: str):
     if not text_chunks:
         raise HTTPException(status_code=404, detail="Document content is empty or could not be parsed.")
 
+    # Get the model (loads it if not already loaded)
+    model = get_embedding_model()
+
     # Create embeddings and index them in batches
-    embeddings = embedding_model.encode(text_chunks).tolist()
+    embeddings = model.encode(text_chunks).tolist()
     vectors = [(str(i), emb, {"text": text_chunks[i]}) for i, emb in enumerate(embeddings)]
 
     # Upsert vectors with namespace = document_url for separation
@@ -160,7 +175,6 @@ def get_llm_response(query: str, context: List[Dict]):
             return str(response)
     except Exception as e:
         print(f"Error calling LLM: {str(e)}")
-        # Check for response object details if available
         if 'response' in locals():
             print(f"Full response object: {str(response)}")
         return f"An error occurred while processing the query: {str(e)}"
@@ -185,9 +199,11 @@ async def run_query_retrieval(
     # --- Step 3-6: Process Queries ---
     answers = []
     try:
+        # Get the model (it will be loaded if this is the first request)
+        model = get_embedding_model()
         for question in request.questions:
             # Create embedding for the query
-            query_embedding = embedding_model.encode(question).tolist()
+            query_embedding = model.encode(question).tolist()
 
             # Pinecone semantic search
             search_results = index.query(
