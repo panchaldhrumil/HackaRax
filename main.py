@@ -23,6 +23,9 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 PINECONE_INDEX_NAME = "insurance-policy-index"
 LLM_MODEL = "gemini-1.5-flash-latest"
 
+# --- USE A SMALLER, MEMORY-EFFICIENT MODEL ---
+EMBEDDING_MODEL_NAME = 'sentence-transformers/msmarco-MiniLM-L-6-v3'
+
 # Validate environment variables
 if not PINECONE_API_KEY:
     raise ValueError("PINECONE_API_KEY environment variable is not set")
@@ -35,7 +38,7 @@ print(f"Loaded PINECONE_API_KEY: {PINECONE_API_KEY[:4]}...{PINECONE_API_KEY[-4:]
 print(f"Loaded PINECONE_ENVIRONMENT: {PINECONE_ENVIRONMENT}")
 print(f"Loaded GEMINI_API_KEY: {GEMINI_API_KEY[:4]}...{GEMINI_API_KEY[-4:]}")
 
-# Initialize FastAPI app WITHOUT the root_path
+# Initialize FastAPI app
 app = FastAPI()
 
 # --- Initialize Services ---
@@ -43,11 +46,11 @@ app = FastAPI()
 # Initialize Pinecone client instance
 pc = Pinecone(api_key=PINECONE_API_KEY)
 
-# Create index if not exists
+# Create index if not exists - NOTE: Dimension is 384 for the new model as well
 if PINECONE_INDEX_NAME not in pc.list_indexes().names():
     pc.create_index(
         name=PINECONE_INDEX_NAME,
-        dimension=384,  # all-MiniLM-L6-v2 embedding dimension
+        dimension=384,
         metric="cosine",
         spec=ServerlessSpec(
             cloud="aws",
@@ -71,8 +74,8 @@ def get_embedding_model():
     """
     global embedding_model
     if embedding_model is None:
-        print("Loading embedding model...")
-        embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+        print(f"Loading new embedding model: {EMBEDDING_MODEL_NAME}...")
+        embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
         print("Embedding model loaded.")
     return embedding_model
 
@@ -138,14 +141,10 @@ def embed_and_index_document(document_url: str):
     if not text_chunks:
         raise HTTPException(status_code=404, detail="Document content is empty or could not be parsed.")
 
-    # Get the model (loads it if not already loaded)
     model = get_embedding_model()
-
-    # Create embeddings and index them in batches
     embeddings = model.encode(text_chunks).tolist()
     vectors = [(str(i), emb, {"text": text_chunks[i]}) for i, emb in enumerate(embeddings)]
 
-    # Upsert vectors with namespace = document_url for separation
     index.upsert(vectors=vectors, namespace=document_url)
     print(f"Document from {document_url} indexed successfully with {len(vectors)} chunks.")
 
@@ -186,27 +185,21 @@ async def run_query_retrieval(
     request: RunRequest,
     authorization: str = Header(..., alias="Authorization")
 ):
-    # --- Authentication ---
     expected_token = "Bearer 35928de76852eb7aacd2ad7b581bee5c8ab7539bdb514be752b6479293dccb2b"
     if authorization != expected_token:
         raise HTTPException(status_code=401, detail="Invalid or missing Authorization token.")
 
-    # --- Step 1 & 2: Process & Index Document ---
     try:
         embed_and_index_document(request.documents)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    # --- Step 3-6: Process Queries ---
     answers = []
     try:
-        # Get the model (it will be loaded if this is the first request)
         model = get_embedding_model()
         for question in request.questions:
-            # Create embedding for the query
             query_embedding = model.encode(question).tolist()
 
-            # Pinecone semantic search
             search_results = index.query(
                 vector=query_embedding,
                 top_k=5,
@@ -215,8 +208,6 @@ async def run_query_retrieval(
             )
 
             relevant_clauses = [match['metadata'] for match in search_results['matches']]
-
-            # Generate answer from LLM
             llm_answer = get_llm_response(question, relevant_clauses)
             answers.append(llm_answer)
 
@@ -224,5 +215,4 @@ async def run_query_retrieval(
         print(f"An error occurred during query processing: {e}")
         answers.append("An error occurred while processing one or more questions.")
 
-    # --- Step 7: Return JSON Output ---
     return {"answers": answers}
