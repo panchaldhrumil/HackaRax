@@ -9,7 +9,8 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict
-from pinecone import Pinecone, ServerlessSpec
+import pinecone 
+from pinecone import ServerlessSpec
 import google.generativeai as genai
 from sentence_transformers import SentenceTransformer
 
@@ -17,12 +18,10 @@ from sentence_transformers import SentenceTransformer
 
 print("🟢 Starting app...")
 
-from fastapi import FastAPI, Header, HTTPException
-from pinecone import pinecone, ServerlessSpec
+# from fastapi import FastAPI, Header, HTTPException
+# from pinecone import pinecone, ServerlessSpec
 
-print("🟢 Initializing Pinecone...")
-pinecone.init(PINECONE_API_KEY="your_pinecone_key", PINECONE_ENV="your_pinecone_environment")
-print("✅ Pinecone initialized")
+
 
 app = FastAPI()
 
@@ -57,21 +56,25 @@ print(f"Loaded GEMINI_API_KEY: {GEMINI_API_KEY[:4]}...{GEMINI_API_KEY[-4:]}")
 # --- Initialize Services ---
 
 # Initialize Pinecone client instance
-pc = Pinecone(api_key=PINECONE_API_KEY)
+pinecone.init(
+    api_key=PINECONE_API_KEY,
+    environment=PINECONE_ENVIRONMENT
+)
+
 
 # Create index if not exists
-if PINECONE_INDEX_NAME not in pc.list_indexes().names():
-    pc.create_index(
+if PINECONE_INDEX_NAME not in pinecone.list_indexes().names():
+    pinecone.create_index(
         name=PINECONE_INDEX_NAME,
         dimension=384,  # all-MiniLM-L6-v2 embedding dimension
         metric="cosine",
         spec=ServerlessSpec(
-            cloud="aws",
-            region="us-east-1"
+            cloud="gcp",
+            region="us-central1"
         )
     )
 
-index = pc.Index(PINECONE_INDEX_NAME)
+index = pinecone.Index(PINECONE_INDEX_NAME)
 
 # Initialize Gemini LLM
 genai.configure(api_key=GEMINI_API_KEY)
