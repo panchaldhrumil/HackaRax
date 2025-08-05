@@ -70,7 +70,7 @@ print("All environment variables loaded successfully.")
 app = FastAPI(root_path="/api/v1")
 
 # --- Initialize Services ---
-pc = Pinecone(api_key=PINECONE_API_KEY)
+pc = pinecone(api_key=PINECONE_API_KEY)
 if PINECONE_INDEX_NAME not in pc.list_indexes().names():
     pc.create_index(name=PINECONE_INDEX_NAME, dimension=384, metric="cosine", spec=ServerlessSpec(cloud="aws", region="us-east-1"))
 

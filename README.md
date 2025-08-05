@@ -153,3 +153,13 @@ sentence-transformers>=2.2.0,<3.0.0
 pymupdf>=1.18.0,<2.0.0
 python-docx>=0.8.10,<0.9.0
 email-validator>=1.1.3,<2.0.0
+
+
+
+for to check that our api key is valid or expired?
+in one separate file,
+import google.generativeai as genai
+genai.configure(api_key="YOUR_API_KEY_HERE")
+model = genai.GenerativeModel("gemini-1.5-flash-latest")
+response = model.generate_content("Say hello")
+print(response.text)
